@@ -82,7 +82,7 @@ Examples:
         logger.error(f"Failed to parse input DOCX file: {e}")
         sys.exit(1)
 
-    logger.info("Extracting document text...")
+    logger.info("Extracting document text (Paragraphs, Tables, Headers, Footers)...")
     blocks = processor.extract_blocks()
     if not blocks:
         logger.warning("No text blocks found in document. Saving output unchanged.")
@@ -90,26 +90,44 @@ Examples:
         logger.info(f"Saved output document to: {output_path}")
         sys.exit(0)
 
-    logger.info(f"Processing {len(blocks)} document text blocks...")
+    # Breakdown of blocks by location
+    header_blocks = [b for b in blocks if b.block_type == "header"]
+    footer_blocks = [b for b in blocks if b.block_type == "footer"]
+    para_blocks = [b for b in blocks if b.block_type == "paragraph"]
+    table_blocks = [b for b in blocks if b.block_type == "table_cell"]
+
+    logger.info(f"Extracted {len(blocks)} total text blocks:")
+    logger.info(f"  - Body Paragraphs: {len(para_blocks)}")
+    logger.info(f"  - Table Cells: {len(table_blocks)}")
+    logger.info(f"  - Headers: {len(header_blocks)}")
+    logger.info(f"  - Footers: {len(footer_blocks)}")
 
     # 2. PII Detection
-    logger.info("Running PII detection...")
+    logger.info("Running PII detection across all document elements...")
     config_file = args.config if os.path.exists(args.config) else None
     detector = PIIDetector(config_path=config_file)
 
     block_entity_map: Dict[DocumentBlock, List[PIIEntity]] = {}
     total_detected = 0
     type_counts: Dict[str, int] = {}
+    location_counts: Dict[str, int] = {}
 
     for block in blocks:
         entities = detector.detect(block.text)
         if entities:
             block_entity_map[block] = entities
             total_detected += len(entities)
+            location_counts[block.block_type] = location_counts.get(block.block_type, 0) + len(entities)
             for ent in entities:
                 type_counts[ent.entity_type] = type_counts.get(ent.entity_type, 0) + 1
 
-    logger.info(f"Detected {total_detected} total PII entities.")
+    logger.info(f"Detected {total_detected} total PII entities across document:")
+    logger.info(f"  - Header Entities: {location_counts.get('header', 0)}")
+    logger.info(f"  - Footer Entities: {location_counts.get('footer', 0)}")
+    logger.info(f"  - Paragraph Entities: {location_counts.get('paragraph', 0)}")
+    logger.info(f"  - Table Entities: {location_counts.get('table_cell', 0)}")
+
+    logger.info("PII Entity Type Breakdown:")
     for etype, count in sorted(type_counts.items()):
         logger.info(f"  - {etype}: {count}")
 

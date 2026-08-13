@@ -1,7 +1,7 @@
 """
 Extensible PII Detection Engine.
 Combines Regex, SpaCy NER, Contextual Heuristics, Entity Trimming, and Overlap Resolution.
-Uses structural and algorithmic validation for Person names and Organizations without static word lists.
+Includes enhanced detectors for Indian Companies (with numeric/Roman numerals), Unprefixed Person Names, and Full Street Addresses.
 """
 
 import re
@@ -59,18 +59,12 @@ def trim_entity_span(text: str, start: int, end: int) -> Tuple[int, int, str]:
 
 
 class BaseDetector(ABC):
-    """
-    Abstract base class for all PII detectors.
-    """
     def __init__(self, name: str, config: Optional[Dict[str, Any]] = None):
         self.name = name
         self.config = config or {}
 
     @abstractmethod
     def detect(self, text: str) -> List[PIIEntity]:
-        """
-        Detect PII entities in the given text string.
-        """
         pass
 
 
@@ -281,6 +275,8 @@ class NameDetector(BaseDetector):
         self.prefixes = self.config.get("prefixes", ["Mr.", "Ms.", "Mrs.", "Dr.", "Prof.", "Shri", "Smt."])
         prefix_pattern = r'\b(?:' + '|'.join(re.escape(p) for p in self.prefixes) + r')\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b'
         self.prefix_regex = re.compile(prefix_pattern)
+        # Dynamic Indian & Global Full Name Pattern (2 to 4 capitalized proper nouns e.g. Lalit Muljibhai Sarvaiya)
+        self.full_name_regex = re.compile(r'\b(?:namely,?\s+|appointed\s+by\s+|by\s+|director\s+|engineer\s+|officer\s+|promoter\s+|auditor\s+)?([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){1,3})\b')
 
     def detect(self, text: str) -> List[PIIEntity]:
         entities = []
@@ -300,7 +296,24 @@ class NameDetector(BaseDetector):
                         source="prefix_heuristic"
                     ))
 
-        # 2. SpaCy NER detection if available
+        # 2. Contextual Full Name Heuristic (e.g. Lalit Muljibhai Sarvaiya)
+        for match in self.full_name_regex.finditer(text):
+            name_val = match.group(1).strip()
+            if validate_person(name_val):
+                val_start = match.start(1)
+                val_end = match.end(1)
+                s, e, t = trim_entity_span(text, val_start, val_end)
+                if t and validate_person(t):
+                    entities.append(PIIEntity(
+                        entity_type="PERSON",
+                        text=t,
+                        start=s,
+                        end=e,
+                        confidence=0.88,
+                        source="full_name_heuristic"
+                    ))
+
+        # 3. SpaCy NER detection
         if SPACY_AVAILABLE and nlp_model is not None:
             doc = nlp_model(text)
             for ent in doc.ents:
@@ -327,9 +340,10 @@ class CompanyDetector(BaseDetector):
         self.suffixes = self.config.get("suffixes", [
             "Ltd", "Limited", "Pvt Ltd", "Private Limited", "LLP", "Inc", "Inc.",
             "Corporation", "Corp", "Technologies", "Industries", "Enterprises", "Solutions",
-            "Co.", "Company"
+            "Co.", "Company", "Services", "Distriparks", "Logistics"
         ])
-        suffix_pattern = r'\b((?:[A-Z][A-Za-z0-9&.-]*\s+){1,6}(?:' + '|'.join(re.escape(s) for s in self.suffixes) + r'))\b'
+        # Enhanced Suffix Regex supporting alphanumeric & Roman numerals in company names (e.g. KSH Infra Park 5 Private Limited)
+        suffix_pattern = r'\b((?:[A-Za-z0-9&.-]+\s+){1,8}(?:' + '|'.join(re.escape(s) for s in self.suffixes) + r'))\b'
         self.suffix_regex = re.compile(suffix_pattern)
 
     def detect(self, text: str) -> List[PIIEntity]:
@@ -350,7 +364,7 @@ class CompanyDetector(BaseDetector):
                         source="company_suffix_heuristic"
                     ))
 
-        # 2. SpaCy ORG detection with structural validation
+        # 2. SpaCy ORG detection
         if SPACY_AVAILABLE and nlp_model is not None:
             doc = nlp_model(text)
             for ent in doc.ents:
@@ -373,17 +387,22 @@ class CompanyDetector(BaseDetector):
 class AddressDetector(BaseDetector):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__("ADDRESS", config)
-        self.confidence = self.config.get("confidence", 0.88)
-        self.pin_pattern = re.compile(r'\b\d{6}\b')
+        self.confidence = self.config.get("confidence", 0.90)
+        self.pin_pattern = re.compile(r'\b\d{3}\s?\d{3}\b|\b\d{6}\b')
         self.address_context = re.compile(
-            r'(?i)\b(address|registered office|corporate office|residence|mailing address|permanent address|communication address)\s*:\s*([^\n\r.]+)',
+            r'(?i)\b(address|registered office|corporate office|residence|mailing address|permanent address|communication address|office at|located at)\s*:\s*([^\n\r.]+)',
+            re.I
+        )
+        # Enhanced Indian Street & Complex Address Regex
+        self.indian_full_address = re.compile(
+            r'\b(?:\d+[\/\d\w\s,-]*\s+)?(?:Plot\s+No\.?|Building\s+No\.?|Tower|Wing|Flat|Office|Shop|No\.?|Village|Taluka|Industrial\s+Area|Marg|Road|Street|Block|Complex|Gala|Floor|Centre|House)\b[^\n\r;]{10,140}?\b(?:\d{3}\s?\d{3}|\d{6})\b(?:[^\n\r;]{0,40}?\b(?:Maharashtra|India|Delhi|Gujarat|Karnataka|Tamil\s+Nadu|Telangana|West\s+Bengal|Haryana|Punjab|Uttar\s+Pradesh|Kerala|Rajasthan|Madhya\s+Pradesh|Bihar|Andhra\s+Pradesh|Goa)\b)?',
             re.I
         )
         self.keywords = [
             "House", "Flat", "Apartment", "Building", "Street", "Road", "Lane",
-            "Sector", "Block", "District", "City", "State", "PIN", "Postal Code", "Marg", "Nagar"
+            "Sector", "Block", "District", "City", "State", "PIN", "Postal Code", "Marg", "Nagar", "Village", "Taluka"
         ]
-        kw_pattern = r'\b(?:\d+[\/\d\w-]*\s+)?(?:' + '|'.join(re.escape(k) for k in self.keywords) + r')\b[^\n\r,.]{0,60}(?:\b\d{6}\b)?'
+        kw_pattern = r'\b(?:\d+[\/\d\w-]*\s+)?(?:' + '|'.join(re.escape(k) for k in self.keywords) + r')\b[^\n\r,.]{0,80}(?:\b\d{3}\s?\d{3}\b|\b\d{6}\b)?'
         self.heuristic_pattern = re.compile(kw_pattern, re.I)
 
     def detect(self, text: str) -> List[PIIEntity]:
@@ -402,11 +421,26 @@ class AddressDetector(BaseDetector):
                         text=t,
                         start=s,
                         end=e,
-                        confidence=0.92,
+                        confidence=0.95,
                         source="address_label_heuristic"
                     ))
 
-        # 2. Heuristic street/location scan
+        # 2. Indian Street/Complex Address Regex
+        for match in self.indian_full_address.finditer(text):
+            candidate = match.group(0).strip()
+            if len(candidate) > 10:
+                s, e, t = trim_entity_span(text, match.start(), match.end())
+                if t:
+                    entities.append(PIIEntity(
+                        entity_type="ADDRESS",
+                        text=t,
+                        start=s,
+                        end=e,
+                        confidence=0.92,
+                        source="indian_full_address_regex"
+                    ))
+
+        # 3. Heuristic street/location scan
         for match in self.heuristic_pattern.finditer(text):
             candidate = match.group(0).strip()
             if len(candidate.split()) >= 2 or self.pin_pattern.search(candidate):
@@ -439,7 +473,6 @@ class PIIDetector:
 
         detector_cfg = self.config.get("detectors", {})
 
-        # Plugin Registry of Detectors
         self.detectors: List[BaseDetector] = [
             EmailDetector(detector_cfg.get("email")),
             URLDetector(detector_cfg.get("url")),
@@ -454,13 +487,9 @@ class PIIDetector:
         ]
 
     def register_detector(self, detector: BaseDetector):
-        """Allows registering custom external detectors easily."""
         self.detectors.append(detector)
 
     def detect(self, text: str) -> List[PIIEntity]:
-        """
-        Detects all PII entities in text and applies overlap resolution.
-        """
         if not text or not text.strip():
             return []
 
@@ -472,18 +501,11 @@ class PIIDetector:
             except Exception as e:
                 logger.error(f"Error in detector {detector.name}: {e}")
 
-        # Deterministic Overlap Resolution
         resolved_entities = self.resolve_overlaps(raw_entities)
         return resolved_entities
 
     @staticmethod
     def resolve_overlaps(entities: List[PIIEntity]) -> List[PIIEntity]:
-        """
-        Resolves overlapping entities using a deterministic ranking:
-        1. Higher confidence score
-        2. Longer character span length
-        3. Priority entity type
-        """
         if not entities:
             return []
 

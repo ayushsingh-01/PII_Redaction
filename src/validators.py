@@ -21,7 +21,8 @@ RECOGNIZED_ORG_INDICATORS = {
     "TECHNOLOGIES", "INDUSTRIES", "ENTERPRISES", "SOLUTIONS", "SERVICES", "SYSTEMS",
     "SECURITIES", "BANK", "LOGISTICS", "MOTORS", "INFRA", "DISTRIPARKS", "MANAGEMENT",
     "ANALYTICS", "ADVISORY", "DEVELOPERS", "HOLDINGS", "GROUP", "FOUNDATION", "TRUST",
-    "CO", "COMPANY", "PARTNERS", "CONSULTING", "AGENCY", "LABS", "PHARMA", "VENTURES","PRIVATE LIMITED"
+    "CO", "COMPANY", "PARTNERS", "CONSULTING", "AGENCY", "LABS", "PHARMA", "VENTURES",
+    "RESEARCH", "EXCHANGE", "BOARD", "PARK", "PROJECT"
 }
 
 # Generic English document structural nouns that never form human personal names
@@ -40,8 +41,8 @@ STRUCTURAL_HEADING_WORDS = {
 def validate_org(org_str: str) -> bool:
     """
     Algorithmic validation for Organization entities:
-    Rejects generic capitalized table titles, headers, or sentence fragments.
     Requires structural presence of a recognized corporate suffix or organizational indicator.
+    Accepts company names containing digits or numbers (e.g. KSH Infra Park 5 Private Limited).
     """
     cleaned = org_str.strip()
     words = [w.strip(".,:;()").upper() for w in cleaned.split() if w.strip(".,:;()")]
@@ -49,6 +50,7 @@ def validate_org(org_str: str) -> bool:
     if not words or len(cleaned) < 3:
         return False
 
+    # Must contain a corporate suffix/indicator
     has_org_indicator = any(w in RECOGNIZED_ORG_INDICATORS for w in words)
     if has_org_indicator:
         return True
@@ -56,7 +58,7 @@ def validate_org(org_str: str) -> bool:
     if len(words) == 1:
         return False
 
-    if "/" in cleaned or "-" in cleaned:
+    if "/" in cleaned:
         return False
 
     return False
@@ -105,7 +107,6 @@ def validate_pan(pan_str: str) -> bool:
 def validate_aadhaar(aadhaar_str: str, context_text: str = "") -> bool:
     """
     Validates Indian Aadhaar 12-digit identification number format.
-    Does not start with 0 or 1.
     """
     digits = re.sub(r'\D', '', aadhaar_str)
     if len(digits) != 12:
@@ -123,7 +124,6 @@ def validate_aadhaar(aadhaar_str: str, context_text: str = "") -> bool:
 def validate_cin(cin_str: str) -> bool:
     """
     Validates Indian Corporate Identity Number (CIN): 21 alphanumeric characters.
-    e.g. U28129PN1979PLC141032 or L12345MH2020PLC123456
     """
     cleaned = cin_str.strip().upper()
     pattern = r'^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$'
