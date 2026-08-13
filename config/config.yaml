@@ -1,0 +1,113 @@
+# PII Redaction Tool Configuration
+
+spacy:
+  model: "en_core_web_sm"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+
+detectors:
+  email:
+    regex: '(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b'
+    confidence: 0.99
+
+  url:
+    regex: '(?i)\b(?:https?://|www\.)[a-z0-9-]+(?:\.[a-z0-9-]+)+[/\w\.-]*\b|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|co\.in|in|io|gov|edu|biz|info)\b'
+    confidence: 0.98
+
+  phone:
+    default_region: "IN"
+    context_keywords:
+      - "phone"
+      - "mobile"
+      - "telephone"
+      - "contact"
+      - "cell"
+      - "tel"
+      - "ph"
+    confidence: 0.90
+
+  ssn:
+    regex: '\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b'
+    context_keywords:
+      - "ssn"
+      - "social security"
+      - "social security number"
+    confidence: 0.95
+
+  credit_card:
+    regex: '\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b|\b(?:\d{4}[-\s]){3}\d{4}\b'
+    confidence: 0.95
+
+  ip:
+    ipv4_regex: '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+    confidence: 0.95
+
+  dob:
+    context_keywords:
+      - "dob"
+      - "d.o.b."
+      - "date of birth"
+      - "birth date"
+      - "birthdate"
+      - "born"
+    confidence: 0.90
+
+  name:
+    prefixes:
+      - "Mr."
+      - "Ms."
+      - "Mrs."
+      - "Dr."
+      - "Prof."
+      - "Shri"
+      - "Smt."
+    confidence: 0.85
+
+  company:
+    suffixes:
+      - "Ltd"
+      - "Limited"
+      - "Pvt Ltd"
+      - "Private Limited"
+      - "LLP"
+      - "Inc"
+      - "Inc."
+      - "Corporation"
+      - "Corp"
+      - "Technologies"
+      - "Industries"
+      - "Enterprises"
+      - "Solutions"
+      - "Pvt. Ltd."
+      - "Co."
+      - "Company"
+    confidence: 0.80
+
+  address:
+    indicators:
+      - "House"
+      - "Flat"
+      - "Apartment"
+      - "Building"
+      - "Street"
+      - "Road"
+      - "Lane"
+      - "Sector"
+      - "Block"
+      - "District"
+      - "City"
+      - "State"
+      - "PIN"
+      - "Postal Code"
+      - "Country"
+      - "Nagari"
+      - "Marg"
+      - "Nagar"
+    confidence: 0.75
+
+replacement:
+  email_domain: "example.com"
+  url_domain: "www.example.com"
+  faker_seed: 42
