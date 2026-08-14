@@ -16,11 +16,10 @@ from src.redactor import DOCXRedactor
 # 1. Streamlit Page Configuration
 st.set_page_config(
     page_title="ShieldPII — DOCX Redactor",
-    page_icon="🔒",
     layout="wide"
 )
 
-# 2. Glassmorphism Styling
+# 2. Styling
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -72,24 +71,24 @@ def get_cached_detector():
 def main():
     st.markdown("""
     <div class="main-header">
-        <h1>🔒 ShieldPII Redaction Studio</h1>
+        <h1>ShieldPII Redaction Studio</h1>
         <p>Upload a Word document (.docx) to redact PII, URLs, and Identity Numbers while preserving layout formatting.</p>
     </div>
     """, unsafe_allow_html=True)
 
     # Sidebar Information
     with st.sidebar:
-        st.header("ℹ️ Document Redactor")
+        st.header("Document Redactor")
         st.markdown("""
         **Supported Entities:**
-        - 👤 **Full Names**
-        - 📧 **Emails** & 🌐 **URLs**
-        - 📞 **Phone Numbers**
-        - 🏢 **Company Names**
-        - 📍 **Addresses**
-        - 🆔 **PAN, Aadhaar, CIN, Voter ID, SSN**
-        - 💳 **Credit Cards** (Luhn Verified)
-        - 🎂 **Dates of Birth** & 🌐 **IPs**
+        - **Full Names**
+        - **Emails** & **URLs**
+        - **Phone Numbers**
+        - **Company Names**
+        - **Addresses**
+        - **PAN, Aadhaar, CIN, Voter ID, SSN**
+        - **Credit Cards** (Luhn Verified)
+        - **Dates of Birth** & **IPs**
         """)
         st.info("Uploaded documents are processed in memory and deleted immediately after download.")
 
@@ -103,7 +102,7 @@ def main():
     if uploaded_file is not None:
         st.success(f"File uploaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
         
-        if st.button("🚀 Process & Redact Document", type="primary", use_container_width=True):
+        if st.button("Process & Redact Document", type="primary", use_container_width=True):
             with st.spinner("Analyzing text blocks and redacting sensitive data..."):
                 start_time = time.time()
                 
@@ -153,8 +152,7 @@ def main():
                     os.unlink(tmp_out_path)
 
                     # 4. Display Results Dashboard
-                    st.balloons()
-                    st.subheader("📊 Redaction Summary")
+                    st.subheader("Redaction Summary")
 
                     c1, c2, c3, c4 = st.columns(4)
                     with c1:
@@ -164,13 +162,13 @@ def main():
                     with c3:
                         st.metric("Processing Time", f"{elapsed:.2f}s")
                     with c4:
-                        st.metric("Status", "Complete ✅")
+                        st.metric("Status", "Complete")
 
                     st.divider()
                     col_left, col_right = st.columns(2)
 
                     with col_left:
-                        st.markdown("#### 📍 Redactions by Document Location")
+                        st.markdown("#### Redactions by Document Location")
                         st.json({
                             "Headers": location_counts.get("header", 0),
                             "Footers": location_counts.get("footer", 0),
@@ -179,14 +177,14 @@ def main():
                         })
 
                     with col_right:
-                        st.markdown("#### 🏷️ Redactions by Entity Category")
+                        st.markdown("#### Redactions by Entity Category")
                         st.json(type_counts if type_counts else {"No PII Found": 0})
 
                     # Direct Download Button
                     st.divider()
                     output_filename = f"redacted_{uploaded_file.name}"
                     st.download_button(
-                        label=f"📥 Download Redacted Document ({output_filename})",
+                        label=f"Download Redacted Document ({output_filename})",
                         data=redacted_bytes,
                         file_name=output_filename,
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
